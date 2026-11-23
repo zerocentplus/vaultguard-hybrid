@@ -1,3 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>VaultGuard Hybrid — Privacy-First Smart Contract & Code Auditor</title>
+  <style>
+    :root { --bg:#0b0f17; --panel:#131a26; --border:#243044; --text:#e6edf7; --muted:#8ea0b8; --accent:#38bdf8; --green:#22c55e; --amber:#f59e0b; }
+    * { box-sizing: border-box; font-family: system-ui, -apple-system, sans-serif; }
+    body { margin: 0; background: var(--bg); color: var(--text); line-height: 1.5; }
+    .container { max-width: 1040px; margin: 0 auto; padding: 28px 20px; }
+    header { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; border-bottom: 1px solid var(--border); padding-bottom: 18px; margin-bottom: 24px; }
+    h1 { margin: 0; font-size: 1.45rem; }
+    .badge { padding: 5px 12px; border-radius: 999px; font-size: 0.8rem; font-weight: 600; background: rgba(34,197,94,0.14); color: var(--green); border: 1px solid rgba(34,197,94,0.35); }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    @media (max-width: 820px) { .grid { grid-template-columns: 1fr; } }
+    .card { background: var(--panel); border: 1px solid var(--border); border-radius: 14px; padding: 18px; }
+    .card h2 { margin: 0 0 10px; font-size: 1.05rem; display: flex; justify-content: space-between; align-items: center; }
+    textarea { width: 100%; height: 250px; background: #080c12; color: #d6e2f5; border: 1px solid var(--border); border-radius: 10px; padding: 12px; font-family: monospace; font-size: 0.85rem; }
+    .controls { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; align-items: center; }
+    select, button { padding: 10px 14px; border-radius: 9px; font-size: 0.9rem; font-weight: 600; cursor: pointer; border: 1px solid var(--border); }
+    select { background: #0f1622; color: var(--text); }
+    button.primary { background: var(--accent); color: #05101c; border: none; }
+    button.secondary { background: #1c2638; color: var(--text); }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    .pill { font-size: 0.75rem; padding: 3px 9px; border-radius: 6px; font-weight: 600; }
+    .pill.local { background: rgba(34,197,94,0.15); color: var(--green); }
+    .pill.cloud { background: rgba(245,158,11,0.15); color: var(--amber); }
+    .output-box { background: #080c12; border: 1px solid var(--border); border-radius: 10px; padding: 14px; min-height: 250px; white-space: pre-wrap; font-size: 0.88rem; overflow-x: auto; }
+    .status-bar { margin-top: 16px; padding: 12px 16px; border-radius: 10px; background: #0f1622; border: 1px solid var(--border); font-size: 0.85rem; color: var(--muted); display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <div>
+        <h1>VaultGuard Hybrid</h1>
+        <div style="color: var(--muted); font-size: 0.9rem;">Privacy-First Smart Contract & Secret Leak Auditor powered by Firebase AI Logic</div>
+      </div>
+      <span class="badge" id="sdkStatus">Firebase AI Logic Ready (Live)</span>
+    </header>
+
+    <div class="grid">
+      <div class="card">
+        <h2><span>1. Source Code / Config Input</span><span class="pill local">Zero-Leak Local Guard</span></h2>
+        <textarea id="codeInput" spellcheck="false">// Sample Solidity + Env snippet to audit
+pragma solidity ^0.8.20;
+
+contract TreasuryVault {
+    address public owner;
+    string private deployKey = "sk-live-98a76b54c3210fedcba9876543210";
+
+    function withdrawAll(address payable to) external {
+        // Missing access control check!
+        (bool ok, ) = to.call{value: address(this).balance}("");
+        require(ok, "Transfer failed");
+    }
+}</textarea>
+        <div class="controls">
+          <select id="inferenceMode">
+            <option value="PREFER_ON_DEVICE">Hybrid: Prefer On-Device (Gemini Nano)</option>
+            <option value="ONLY_ON_DEVICE">Strict Offline: Only On-Device</option>
+            <option value="PREFER_IN_CLOUD">Hybrid: Prefer Cloud (Gemini 2.5 Flash)</option>
+          </select>
+          <button class="secondary" id="sampleBtn" type="button">Load Sample</button>
+          <button class="primary" id="auditBtn" type="button">Run Hybrid Audit</button>
+        </div>
+      </div>
+
+      <div class="card">
+        <h2><span>2. Hybrid Security Audit Report</span><span class="pill cloud" id="routeBadge">Awaiting Run</span></h2>
+        <div class="output-box" id="auditOutput">Click "Run Hybrid Audit" to scan secrets on-device and run hybrid AI inference.</div>
+      </div>
+    </div>
+
+    <div class="status-bar">
+      <span id="redactionLog">Local Secret Guard: Ready</span>
+      <span>Project: <strong>vaultguard-hybrid</strong> | Firebase AI Logic + App Check</span>
+    </div>
+  </div>
   <script src="app.js"></script>
 </body>
 </html>
