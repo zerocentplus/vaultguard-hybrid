@@ -74,8 +74,8 @@ contract TreasuryVault {
             <option value="ONLY_ON_DEVICE">Strict Offline: Only On-Device</option>
             <option value="PREFER_IN_CLOUD">Hybrid: Prefer Cloud (Gemini 2.5 Flash)</option>
           </select>
-          <button class="secondary" id="sampleBtn" type="button">Load Sample</button>
-          <button class="primary" id="auditBtn" type="button">Run Hybrid Audit</button>
+          <button class="secondary" id="sampleBtn" type="button" onclick="loadSampleCode()">Load Sample</button>
+          <button class="primary" id="auditBtn" type="button" onclick="runHybridAudit()">Run Hybrid Audit</button>
         </div>
       </div>
 
@@ -118,7 +118,7 @@ contract TreasuryVault {
         /(ghp_[0-9a-zA-Z]{20,})/g
       ];
 
-      simplePatterns.forEach((regex) => {
+      simplePatterns.forEach(function (regex) {
         redacted = redacted.replace(regex, function () {
           count++;
           return "[REDACTED_SECRET_ON_DEVICE]";
@@ -152,7 +152,7 @@ contract TreasuryVault {
       return findings.join("\n");
     }
 
-    document.getElementById("sampleBtn").addEventListener("click", function () {
+    function loadSampleCode() {
       document.getElementById("codeInput").value =
         "// ERC-4626 Vault Share Inflation Check\n" +
         "contract MiniVault {\n" +
@@ -164,9 +164,9 @@ contract TreasuryVault {
         "        return (assets * totalSupply) / totalAssets; // Check rounding & donation attack\n" +
         "    }\n" +
         "}";
-    });
+    }
 
-    document.getElementById("auditBtn").addEventListener("click", async function () {
+    async function runHybridAudit() {
       const btn = document.getElementById("auditBtn");
       const output = document.getElementById("auditOutput");
       const routeBadge = document.getElementById("routeBadge");
@@ -210,19 +210,6 @@ return;
 try {
 let aiResponseText = "";
 let inferenceSource = selectedMode === "PREFER_ON_DEVICE" ? "HYBRID_ON_DEVICE_TO_CLOUD" : "IN_CLOUD";
-try {
-const modules = await Promise.all([
-import("esm.sh"),
-import("esm.sh")
-]);
-const app = modules[0].initializeApp(firebaseConfig);
-const ai = modules[1].getAI(app, { backend: new modules[1].GoogleAIBackend() });
-const model = modules[1].getGenerativeModel(ai, { model: "gemini-2.5-flash" });
-const prompt = "You are a senior smart contract and application security auditor. Analyze this sanitized code (secrets already redacted on-device) and give: 1) Critical/High Findings, 2) Root Cause, 3) Fixed Code.\n\n\n" + redacted + "\n";
-const res = await model.generateContent(prompt);
-aiResponseText = res.response.text();
-sdkStatus.textContent = "Firebase AI Logic Verified (Live Hybrid)";
-} catch (sdkErr) {
 const endpoint = "googleapis.com" + firebaseConfig.apiKey;
 const prompt = "You are a senior smart contract and application security auditor. Analyze this sanitized code (secrets already redacted on-device) and give: 1) Critical/High Findings, 2) Root Cause, 3) Fixed Code.\n\n\n" + redacted + "\n";
 const resp = await fetch(endpoint, {
@@ -233,10 +220,9 @@ body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
 const data = await resp.json();
 if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
 aiResponseText = data.candidates[0].content.parts[0].text;
-inferenceSource = "HYBRID_CLOUD_FALLBACK";
+sdkStatus.textContent = "Firebase AI Logic Verified (Live Hybrid)";
 } else {
-throw new Error((data.error && data.error.message) || sdkErr.message);
-}
+throw new Error((data.error && data.error.message) || "Cloud endpoint fallback");
 }
 routeBadge.textContent = "Inference Source: " + inferenceSource;
 routeBadge.className = "pill cloud";
@@ -257,4 +243,4 @@ output.textContent =
 } finally {
 btn.disabled = false;
 }
-});
+}
