@@ -97,7 +97,6 @@ contract TreasuryVault {
   </div>
 
   <script>
-    // Enable App Check Debug Token for hackathon evaluation & live demo
     window.FIREBASE_APPCHECK_DEBUG_TOKEN = "7f9c3d12-8a4b-4e6f-9c2d-1b8e5a7f3c90";
 
     const firebaseConfig = {
@@ -110,24 +109,30 @@ contract TreasuryVault {
     };
 
     function redactSecretsLocally(rawCode) {
-      const patterns = [
-        /(sk-[a-zA-Z0-9_-]{12,})/g,
-        /(AIza[0-9A-Za-z-_]{25,})/g,
-        /(ghp_[0-9a-zA-Z]{20,})/g,
-        /((?:API_KEY|DEPLOY_TOKEN|SECRET|PRIVATE_KEY|PASSWORD)\s*[:=]\s*["']?)([^"'\s\n]+)(["']?)/gi
-      ];
       let redacted = rawCode;
       let count = 0;
 
-      patterns.forEach((regex, idx) => {
-        redacted = redacted.replace(regex, (...args) => {
+      const simplePatterns = [
+        /(sk-[a-zA-Z0-9_-]{12,})/g,
+        /(AIza[0-9A-Za-z-_]{25,})/g,
+        /(ghp_[0-9a-zA-Z]{20,})/g
+      ];
+
+      simplePatterns.forEach((regex) => {
+        redacted = redacted.replace(regex, function () {
           count++;
-          if (idx === 3) return `${args[1]}[REDACTED_ON_DEVICE]${args[3]}`;
           return "[REDACTED_SECRET_ON_DEVICE]";
         });
       });
 
-      return { redacted, count };
+      const keyValRegex = /((?:API_KEY|DEPLOY_TOKEN|SECRET|PRIVATE_KEY|PASSWORD)\s*[:=]\s*["']?)([^"'\s\n]+)(["']?)/gi;
+      redacted = redacted.replace(keyValRegex, function (match, p1, p2, p3) {
+        if (p2 === "[REDACTED_SECRET_ON_DEVICE]") return match;
+        count++;
+        return p1 + "[REDACTED_ON_DEVICE]" + p3;
+      });
+
+      return { redacted: redacted, count: count };
     }
 
     function runLocalHeuristicAudit(redactedCode) {
@@ -147,21 +152,21 @@ contract TreasuryVault {
       return findings.join("\n");
     }
 
-    document.getElementById("sampleBtn").addEventListener("click", () => {
-      document.getElementById("codeInput").value = `// ERC-4626 Vault Share Inflation Check
-contract MiniVault {
-    uint256 public totalAssets;
-    uint256 public totalSupply;
-    string constant API_KEY = "AIzaSyD9876543210SecretTokenExample12345";
-
-    function convertToShares(uint256 assets) public view returns (uint256) {
-        if (totalSupply == 0) return assets;
-        return (assets * totalSupply) / totalAssets; // Check rounding & donation attack
-    }
-}`;
+    document.getElementById("sampleBtn").addEventListener("click", function () {
+      document.getElementById("codeInput").value =
+        "// ERC-4626 Vault Share Inflation Check\n" +
+        "contract MiniVault {\n" +
+        "    uint256 public totalAssets;\n" +
+        "    uint256 public totalSupply;\n" +
+        "    string constant API_KEY = \"AIzaSyD9876543210SecretTokenExample12345\";\n\n" +
+        "    function convertToShares(uint256 assets) public view returns (uint256) {\n" +
+        "        if (totalSupply == 0) return assets;\n" +
+        "        return (assets * totalSupply) / totalAssets; // Check rounding & donation attack\n" +
+        "    }\n" +
+        "}";
     });
 
-    document.getElementById("auditBtn").addEventListener("click", async () => {
+    document.getElementById("auditBtn").addEventListener("click", async function () {
       const btn = document.getElementById("auditBtn");
       const output = document.getElementById("auditOutput");
       const routeBadge = document.getElementById("routeBadge");
@@ -175,60 +180,80 @@ contract MiniVault {
       btn.disabled = true;
       output.textContent = "Step 1: Running local on-device secret scan & redaction...\nStep 2: Routing sanitized code through Firebase AI Logic Hybrid Inference...";
 
-      const { redacted, count } = redactSecretsLocally(rawCode);
-      redactionLog.textContent = `Local Secret Guard: Masked ${count} sensitive credential(s) before inference`;
+      const resRedaction = redactSecretsLocally(rawCode);
+      const redacted = resRedaction.redacted;
+      const count = resRedaction.count;
+      redactionLog.textContent = "Local Secret Guard: Masked " + count + " sensitive credential(s) before inference";
 
       const localFindings = runLocalHeuristicAudit(redacted);
 
       if (selectedMode === "ONLY_ON_DEVICE") {
-        // Try Chrome Prompt API (window.ai / LanguageModel) if available, else local on-device engine
         let onDeviceAiText = "";
         try {
           if (window.LanguageModel) {
             const session = await window.LanguageModel.create();
             onDeviceAiText = await session.prompt("Briefly audit this sanitized code for security bugs:\n" + redacted);
           }
-        } catch (_) {}
+        } catch (e) {}
 
         routeBadge.textContent = "Inference Source: ON_DEVICE";
         routeBadge.className = "pill local";
-        output.textContent = `=== 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\nSecrets masked locally before inference: ${count}\n\n=== 2. ON-DEVICE SECURITY TRIAGE ===\n${onDeviceAiText || localFindings}\n\n=== 3. SANITIZED CODE ===\n${redacted}`;
-        btn.disabled = false;
+        output.textContent =
+"=== 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\n" +
+"Secrets masked locally before inference: " + count + "\n\n" +
+"=== 2. ON-DEVICE SECURITY TRIAGE ===\n" +
+(onDeviceAiText || localFindings) + "\n\n" +
+"=== 3. SANITIZED CODE ===\n" + redacted;
+btn.disabled = false;
 return;
 }
-// Hybrid Path: Try Firebase AI Logic SDK first, with seamless Gemini Developer API hybrid fallback
 try {
 let aiResponseText = "";
 let inferenceSource = selectedMode === "PREFER_ON_DEVICE" ? "HYBRID_ON_DEVICE_TO_CLOUD" : "IN_CLOUD";
 try {
-const [{ initializeApp }, { getAI, getGenerativeModel, GoogleAIBackend }] = await Promise.all([
+const modules = await Promise.all([
 import("esm.sh"),
 import("esm.sh")
 ]);
-const app = initializeApp(firebaseConfig);
-const ai = getAI(app, { backend: new GoogleAIBackend() });
-const model = getGenerativeModel(ai, { model: "gemini-2.5-flash" });
-const prompt = You are a senior smart contract and application security auditor. Analyze this sanitized code (secrets already redacted on-device) and give: 1) Critical/High Findings, 2) Root Cause, 3) Fixed Code.\n\n\``\n${redacted}\n```; const res = await model.generateContent(prompt); aiResponseText = res.response.text(); sdkStatus.textContent = "Firebase AI Logic Verified (Live Hybrid)"; } catch (sdkErr) { // Direct Gemini Developer API fallback for browsers blocking esm.sh module imports const endpoint = googleapis.com{firebaseConfig.apiKey}; const prompt = You are a senior smart contract and application security auditor. Analyze this sanitized code (secrets already redacted on-device) and give: 1) Critical/High Findings, 2) Root Cause, 3) Fixed Code.\n\n```\n${redacted}\n````;
+const app = modules[0].initializeApp(firebaseConfig);
+const ai = modules[1].getAI(app, { backend: new modules[1].GoogleAIBackend() });
+const model = modules[1].getGenerativeModel(ai, { model: "gemini-2.5-flash" });
+const prompt = "You are a senior smart contract and application security auditor. Analyze this sanitized code (secrets already redacted on-device) and give: 1) Critical/High Findings, 2) Root Cause, 3) Fixed Code.\n\n\n" + redacted + "\n";
+const res = await model.generateContent(prompt);
+aiResponseText = res.response.text();
+sdkStatus.textContent = "Firebase AI Logic Verified (Live Hybrid)";
+} catch (sdkErr) {
+const endpoint = "googleapis.com" + firebaseConfig.apiKey;
+const prompt = "You are a senior smart contract and application security auditor. Analyze this sanitized code (secrets already redacted on-device) and give: 1) Critical/High Findings, 2) Root Cause, 3) Fixed Code.\n\n\n" + redacted + "\n";
 const resp = await fetch(endpoint, {
 method: "POST",
 headers: { "Content-Type": "application/json" },
 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
 });
 const data = await resp.json();
-if (data.candidates && data.candidates[0]?.content?.parts?.[0]?.text) {
+if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
 aiResponseText = data.candidates[0].content.parts[0].text;
 inferenceSource = "HYBRID_CLOUD_FALLBACK";
 } else {
-throw new Error(data.error?.message || sdkErr.message);
+throw new Error((data.error && data.error.message) || sdkErr.message);
 }
 }
-routeBadge.textContent = Inference Source: ${inferenceSource};
+routeBadge.textContent = "Inference Source: " + inferenceSource;
 routeBadge.className = "pill cloud";
-output.textContent = === 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\nSecrets masked on-device prior to inference: ${count}\n\n=== 2. LOCAL PRE-SCREEN ===\n${localFindings}\n\n=== 3. HYBRID AI DEEP AUDIT (${inferenceSource}) ===\n\n${aiResponseText};
+output.textContent =
+"=== 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\n" +
+"Secrets masked on-device prior to inference: " + count + "\n\n" +
+"=== 2. LOCAL PRE-SCREEN ===\n" + localFindings + "\n\n" +
+"=== 3. HYBRID AI DEEP AUDIT (" + inferenceSource + ") ===\n\n" + aiResponseText;
 } catch (err) {
 routeBadge.textContent = "On-Device Fallback Active";
 routeBadge.className = "pill local";
-output.textContent = === 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\nSecrets masked on-device prior to inference: ${count}\n\n=== 2. ON-DEVICE SECURITY REPORT ===\n${localFindings}\n\n=== 3. SANITIZED CODE ===\n${redacted}\n\n(Cloud status: ${err.message});
+output.textContent =
+"=== 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\n" +
+"Secrets masked on-device prior to inference: " + count + "\n\n" +
+"=== 2. ON-DEVICE SECURITY REPORT ===\n" + localFindings + "\n\n" +
+"=== 3. SANITIZED CODE ===\n" + redacted + "\n\n" +
+"(Cloud status: " + err.message + ")";
 } finally {
 btn.disabled = false;
 }
