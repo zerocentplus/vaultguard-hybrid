@@ -46,7 +46,7 @@
         <h1>VaultGuard Hybrid</h1>
         <div style="color: var(--muted); font-size: 0.9rem;">Privacy-First Smart Contract & Secret Leak Auditor powered by Firebase AI Logic</div>
       </div>
-      <span class="badge" id="sdkStatus">Firebase AI Logic Ready (Hybrid Engine)</span>
+      <span class="badge" id="sdkStatus">Firebase AI Logic Ready (v2.0)</span>
     </header>
 
     <div class="grid">
@@ -199,7 +199,7 @@ contract TreasuryVault {
         routeBadge.textContent = "Inference Source: ON_DEVICE";
         routeBadge.className = "pill local";
         output.textContent =
-"=== 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\n" +
+          "=== 1. LOCAL PRIVACY SHIELD (ON-DEVICE) ===\n" +
 "Secrets masked locally before inference: " + count + "\n\n" +
 "=== 2. ON-DEVICE SECURITY TRIAGE ===\n" +
 (onDeviceAiText || localFindings) + "\n\n" +
