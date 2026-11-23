@@ -218,8 +218,10 @@ headers: { "Content-Type": "application/json" },
 body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
 });
 const data = await resp.json();
-if (data.candidates && data.candidates[0] && data.candidates[0].content && data.candidates[0].content.parts && data.candidates[0].content.parts[0]) {
-aiResponseText = data.candidates[0].content.parts[0].text;
+const firstCand = data && Array.isArray(data.candidates) ? data.candidates.at(0) : null;
+const firstPart = firstCand && firstCand.content && Array.isArray(firstCand.content.parts) ? firstCand.content.parts.at(0) : null;
+if (firstPart && firstPart.text) {
+aiResponseText = firstPart.text;
 sdkStatus.textContent = "Firebase AI Logic Verified (Live Hybrid)";
 } else {
 throw new Error((data.error && data.error.message) || "Cloud endpoint fallback");
