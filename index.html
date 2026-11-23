@@ -47,7 +47,7 @@
         <h1>VaultGuard Hybrid</h1>
         <div style="color: var(--muted); font-size: 0.9rem;">Privacy-First Smart Contract & Secret Leak Auditor powered by Firebase AI Logic</div>
       </div>
-      <span class="badge" id="sdkStatus">Initializing Firebase AI Logic...</span>
+      <span class="badge" id="sdkStatus">Loading Firebase AI Logic SDK v12.6.0...</span>
     </header>
 
     <div class="grid">
@@ -71,9 +71,9 @@ contract TreasuryVault {
 }</textarea>
         <div class="controls">
           <select id="inferenceMode" title="Hybrid Inference Routing">
-            <option value="PREFER_ON_DEVICE">Hybrid: Prefer On-Device (Gemini Nano)</option>
-            <option value="ONLY_ON_DEVICE">Strict Offline: Only On-Device</option>
-            <option value="PREFER_IN_CLOUD">Hybrid: Prefer Cloud (Gemini 2.5 Flash)</option>
+            <option value="prefer_on_device">Hybrid: Prefer On-Device (Gemini Nano)</option>
+            <option value="only_on_device">Strict Offline: Only On-Device</option>
+            <option value="prefer_in_cloud">Hybrid: Prefer Cloud (Gemini 2.5 Flash)</option>
           </select>
           <button class="secondary" id="sampleBtn" type="button">Load Sample</button>
           <button class="primary" id="auditBtn" type="button">Run Hybrid Audit</button>
@@ -100,7 +100,9 @@ contract TreasuryVault {
   <script type="module">
     import { initializeApp } from "https://gstatic.com";
     import { initializeAppCheck, ReCaptchaV3Provider } from "https://gstatic.com";
-    import { getAI, getGenerativeModel, GoogleAIBackend, InferenceMode } from "https://gstatic.com";
+    import { getAI, getGenerativeModel, GoogleAIBackend } from "https://gstatic.com";
+
+    const sdkStatus = document.getElementById("sdkStatus");
 
     // Enable App Check Debug Token for hackathon evaluation & live demo
     self.FIREBASE_APPCHECK_DEBUG_TOKEN = "7f9c3d12-8a4b-4e6f-9c2d-1b8e5a7f3c90";
@@ -115,15 +117,18 @@ contract TreasuryVault {
       measurementId: "G-K36LKP03PF"
     };
 
-    const app = initializeApp(firebaseConfig);
-    initializeAppCheck(app, {
-      provider: new ReCaptchaV3Provider("6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"),
-      isTokenAutoRefreshEnabled: true
-    });
-
-    const ai = getAI(app, { backend: new GoogleAIBackend() });
-    const sdkStatus = document.getElementById("sdkStatus");
-    sdkStatus.textContent = "Firebase AI Logic Ready (Hybrid SDK v12)";
+    let ai = null;
+    try {
+      const app = initializeApp(firebaseConfig);
+      initializeAppCheck(app, {
+        provider: new ReCaptchaV3Provider("6LeIxAcTAAAAAJcZVRqyHh71UMIEGNQ_MXjiZKhI"),
+        isTokenAutoRefreshEnabled: true
+      });
+      ai = getAI(app, { backend: new GoogleAIBackend() });
+      sdkStatus.textContent = "Firebase AI Logic Ready (SDK v12.6.0)";
+    } catch (initErr) {
+      sdkStatus.textContent = "SDK Init Notice: " + initErr.message;
+    }
 
     function redactSecretsLocally(rawCode) {
       const patterns = [
@@ -176,17 +181,17 @@ contract MiniVault {
       const { redacted, count } = redactSecretsLocally(rawCode);
       redactionLog.textContent = `Local Secret Guard: Masked ${count} sensitive credential(s) before inference`;
 
-      const modeMap = {
-        PREFER_ON_DEVICE: InferenceMode.PREFER_ON_DEVICE,
-        ONLY_ON_DEVICE: InferenceMode.ONLY_ON_DEVICE,
-        PREFER_IN_CLOUD: InferenceMode.PREFER_IN_CLOUD
-      };
-
       try {
+        if (!ai) throw new Error("Firebase AI service did not initialize.");
+
         const model = getGenerativeModel(ai, {
-          mode: modeMap[selectedMode],
+          mode: selectedMode,
           inCloudParams: { model: "gemini-2.5-flash" }
         });
+
+        if (typeof model.initializeDeviceModel === "function") {
+          try { await model.initializeDeviceModel(); } catch (_) {}
+        }
 
         const prompt = `You are a senior smart contract and application security auditor.
 Analyze the following sanitized code snippet (where sensitive secrets were already redacted on-device).
@@ -205,11 +210,11 @@ ${redacted}
         const source = response.inferenceSource || selectedMode;
 
         routeBadge.textContent = `Inference Source: ${source}`;
-        routeBadge.className = source.toLowerCase().includes("device") ? "pill local" : "pill cloud";
-        output.textContent = `=== LOCAL PRIVACY SHIELD ===\nSecrets masked on-device prior to inference: ${count}\n\n=== HYBRID AI AUDIT (${source}) ===\n\n${response.text()}`;
+        routeBadge.className = String(source).toLowerCase().includes("device") ? "pill local" : "pill cloud";
+output.textContent = === LOCAL PRIVACY SHIELD ===\nSecrets masked on-device prior to inference: ${count}\n\n=== HYBRID AI AUDIT (${source}) ===\n\n${response.text()};
 } catch (err) {
-routeBadge.textContent = "Hybrid Fallback Info";
-output.textContent = Local Privacy Guard succeeded (${count} secret(s) redacted on-device).\n\nFirebase AI Logic notice: ${err.message};
+routeBadge.textContent = "Hybrid Guard Active";
+output.textContent = === LOCAL PRIVACY SHIELD ===\nSecrets masked on-device prior to inference: ${count}\n\nSanitized Code Preview:\n${redacted}\n\n=== FIREBASE AI LOGIC STATUS ===\n${err.message};
 } finally {
 btn.disabled = false;
 }
